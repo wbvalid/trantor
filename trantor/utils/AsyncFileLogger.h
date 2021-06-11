@@ -27,7 +27,7 @@
 
 namespace trantor
 {
-using StringPtr = std::shared_ptr<std::string>;
+using StringPtr = std::unique_ptr<std::string>;
 using StringPtrQueue = std::queue<StringPtr>;
 
 /**
@@ -99,7 +99,7 @@ class TRANTOR_EXPORT AsyncFileLogger : NonCopyable
     StringPtr nextBufferPtr_;
     StringPtrQueue writeBuffers_;
     StringPtrQueue tmpBuffers_;
-    void writeLogToFile(const StringPtr buf);
+    void writeLogToFile(const std::string* buf);
     std::unique_ptr<std::thread> threadPtr_;
     bool stopFlag_{false};
     void logThreadFunc();
@@ -114,7 +114,7 @@ class TRANTOR_EXPORT AsyncFileLogger : NonCopyable
                    const std::string &fileBaseName,
                    const std::string &fileExtName);
         ~LoggerFile();
-        void writeLog(const StringPtr buf);
+        void writeLog(const std::string* buf);
         uint64_t getLength();
         explicit operator bool() const
         {
