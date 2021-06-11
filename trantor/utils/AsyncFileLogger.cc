@@ -54,13 +54,13 @@ AsyncFileLogger::~AsyncFileLogger()
         std::lock_guard<std::mutex> guard_(mutex_);
         if (logBufferPtr_->length() > 0)
         {
-            writeBuffers_.push(logBufferPtr_);
+            writeBuffers_.push(std::move(logBufferPtr_));
         }
         while (!writeBuffers_.empty())
         {
-            StringPtr tmpPtr = (StringPtr &&) writeBuffers_.front();
+            StringPtr tmpPtr = std::move(writeBuffers_.front());
             writeBuffers_.pop();
-            writeLogToFile(tmpPtr);
+            writeLogToFile(tmpPtr.get());
         }
     }
 }
@@ -72,7 +72,7 @@ void AsyncFileLogger::output(const char *msg, const uint64_t len)
         return;
     if (!logBufferPtr_)
     {
-        logBufferPtr_ = std::make_shared<std::string>();
+        logBufferPtr_ = std::make_unique<std::string>();
         logBufferPtr_->reserve(kMemBufferSize);
     }
     if (logBufferPtr_->capacity() - logBufferPtr_->length() < len)
@@ -112,7 +112,7 @@ void AsyncFileLogger::flush()
     }
 }
 
-void AsyncFileLogger::writeLogToFile(const StringPtr buf)
+void AsyncFileLogger::writeLogToFile(const std::string* buf)
 {
     if (!loggerFilePtr_)
     {
@@ -152,13 +152,13 @@ void AsyncFileLogger::logThreadFunc()
 
         while (!tmpBuffers_.empty())
         {
-            StringPtr tmpPtr = (StringPtr &&) tmpBuffers_.front();
+            StringPtr tmpPtr = std::move(tmpBuffers_.front());
             tmpBuffers_.pop();
-            writeLogToFile(tmpPtr);
+            writeLogToFile(tmpPtr.get());
             tmpPtr->clear();
             {
                 std::unique_lock<std::mutex> lock(mutex_);
-                nextBufferPtr_ = tmpPtr;
+                nextBufferPtr_.swap(tmpPtr);
             }
         }
         if (loggerFilePtr_)
@@ -193,7 +193,7 @@ AsyncFileLogger::LoggerFile::LoggerFile(const std::string &filePath,
 }
 
 uint64_t AsyncFileLogger::LoggerFile::fileSeq_{0};
-void AsyncFileLogger::LoggerFile::writeLog(const StringPtr buf)
+void AsyncFileLogger::LoggerFile::writeLog(const std::string* buf)
 {
     if (fp_)
     {
@@ -238,16 +238,16 @@ AsyncFileLogger::LoggerFile::~LoggerFile()
 
 void AsyncFileLogger::swapBuffer()
 {
-    writeBuffers_.push(logBufferPtr_);
+    writeBuffers_.push(std::move(logBufferPtr_));
     if (nextBufferPtr_)
     {
-        logBufferPtr_ = nextBufferPtr_;
+        logBufferPtr_.swap(nextBufferPtr_);
         nextBufferPtr_.reset();
         logBufferPtr_->clear();
     }
     else
     {
-        logBufferPtr_ = std::make_shared<std::string>();
+        logBufferPtr_ = std::make_unique<std::string>();
         logBufferPtr_->reserve(kMemBufferSize);
     }
 }
